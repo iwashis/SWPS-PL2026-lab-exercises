@@ -188,20 +188,30 @@ fn task3_strings() {
 
 // running_sum(&[1, 2, 3, 4]) == vec![1, 3, 6, 10].
 fn running_sum(values: &[i32]) -> Vec<i32> {
-    todo!()
+    let mut result = Vec::with_capacity(values.len());
+    let mut acc = 0;
+    for &v in values {
+        acc += v;
+        result.push(acc);
+    }
+    result
 }
 
-// Multiply every element by 2 in place. Use values.iter_mut() (or
-// `for x in values`) and *x *= 2.
+// Multiply every element by 2 in place.
 fn double_in_place(values: &mut [i32]) {
-    todo!()
+    todo!() // the asterix is going to be here somewhere
 }
 
 // Keep the first occurrence of each value, preserving order:
-// [3, 1, 3, 2, 1] -> [3, 1, 2]. Hint: build a new Vec, check `contains`,
-// then `*values = result` (also look at `retain`).
+// [3, 1, 3, 2, 1] -> [3, 1, 2].
 fn remove_duplicates(values: &mut Vec<i32>) {
-    todo!()
+    let mut result = Vec::new();
+    for &v in values.iter() {
+        if !result.contains(&v) {
+            result.push(v);
+        }
+    }
+    *values = result;
 }
 
 // largest(&[4, 9, 2]) == Some(9), largest(&[]) == None.
@@ -222,7 +232,7 @@ fn task4_vectors() {
 // Task 5 — Structs and methods
 // ---------------------------------------------------------------------------
 // What does each derive give you? Remove `Copy` and see what breaks.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct Point {
     x: f64,
     y: f64,
@@ -231,16 +241,19 @@ struct Point {
 impl Point {
     const ORIGIN: Point = Point { x: 0.0, y: 0.0 };
 
-    fn new(x: f64, y: f64) -> Self {
-        todo!()
+    fn new(x: f64, y: f64) -> Point {
+        Point { x, y }
     }
 
     fn distance(&self, other: &Point) -> f64 {
-        todo!()
+        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
+    // let p = Point::new(1,2);
+    // let p2 = Point::new(3,45);
+    // p.distance(p2);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct Rectangle {
     top_left: Point,
     width: f64,
@@ -249,12 +262,20 @@ struct Rectangle {
 
 impl Rectangle {
     fn new(top_left: Point, width: f64, height: f64) -> Self {
-        todo!()
+        Self {
+            top_left,
+            width,
+            height,
+        }
     }
 
     // Associated function, not a method.
-    fn square(top_left: Point, size: f64) -> Self {
-        todo!()
+    fn square(top_left: Point, base: f64) -> Self {
+        Self {
+            top_left,
+            width: base,
+            height: base,
+        }
     }
 
     fn area(&self) -> f64 {
@@ -282,7 +303,7 @@ struct Meters(f64);
 struct Feet(f64);
 
 fn to_feet(m: Meters) -> Feet {
-    todo!()
+    Feet(m.0 * 3.28)
 }
 
 // task5_structs:
