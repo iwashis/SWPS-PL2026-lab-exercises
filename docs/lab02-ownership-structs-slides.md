@@ -160,6 +160,115 @@ add_one(&mut m);                 // ok — sequential &mut borrows, never overla
 
 ---
 
+# Changing a borrowed value: the `*` operator
+
+`&x` makes a reference *to* `x`; `*r` **dereferences** it — means "the value `r` points at". Writing to `*r` changes the owner's data.
+
+- `&` and `*` are inverses: `*&x` is just `x`. The `*` in `*r1 += 1`, `*bump += 1`, `*x += 1` on the previous slides is this operator
+- Assign to `*r`, not to `r`: `*r = 10`, `*r += 1`, `*r = *r * 2`. Without the `*` you are talking about the reference itself, which is a pointer, not a number — `r += 1` is E0368 and `r = 6` is E0308 (mismatched types)
+- Two things must hold to write through a reference: the **owner** is declared `let mut`, and the borrow is `&mut` — otherwise E0596 (can't take `&mut` of a non-`mut` variable) or E0594 (can't assign through a `&` reference)
+- While the `&mut` borrow is alive, the owner itself is frozen: reading it is E0502, assigning to it is E0506. Once the borrow's last use has passed, the owner sees the new value
+- `let r = &mut x` vs `let mut r = &x`: the `mut` *after* `&` lets you change the value pointed at; `mut` on the binding only lets you point `r` at something else later
+
+```rust
+let mut score = 10;          // owner must be `mut`
+let r = &mut score;          // r: &mut i32 — r itself needs no `mut`
+*r += 5;                     // score is now 15
+*r = *r * 2;                 // read through r, then write through r: 30
+println!("{score}");         // 30 — r's last use was above, so score is usable again
+
+let mut a = 1; let mut b = 2;
+let mut p = &mut a;          // `mut p`: p may be re-pointed
+*p += 1;                     // a == 2
+p = &mut b;                  // now p points at b — no `*`, we change the reference
+*p += 1;                     // b == 3
+```
+
+---
+
+# Reading and replacing through a reference
+
+- For a `Copy` value, `*r` reads a copy out: `let n: i32 = *r;` — the original is untouched
+- For a non-`Copy` value, `*r` cannot be moved out: `let t = *r;` with `r: &String` is **E0507** (cannot move out of a borrow) — the borrower doesn't own it, so it can't give it away. Clone it, or use the `std::mem` helpers below
+- Assigning to `*r` replaces the **whole** value in the caller's variable; the old value is dropped right there. This is how a function given `&mut Vec<T>` can hand back a completely new vector (`*values = result;` in `remove_duplicates`). Writing `values = result;` instead is E0308 — `values` is a `&mut Vec<i32>`, not a `Vec<i32>`
+- To move a value *out* of a `&mut` you must leave something valid behind:
+  - `std::mem::replace(r, new)` — puts `new` in, returns the old value
+  - `std::mem::take(r)` — returns the old value, leaves `Default::default()` (`""`, `vec![]`, `0`)
+  - `std::mem::swap(&mut a, &mut b)` — exchanges two values
+
+```rust
+let n = 7;
+let rn = &n;
+let copy: i32 = *rn;                // ok — i32 is Copy
+
+fn reset(v: &mut Vec<i32>) {
+    *v = vec![0];                   // replaces the caller's whole Vec; old one dropped
+}
+
+let mut name = String::from("Ada");
+let old = std::mem::replace(&mut name, String::from("Grace")); // old == "Ada"
+let taken = std::mem::take(&mut name);                         // taken == "Grace", name == ""
+```
+
+---
+
+# When you don't write `*`: auto-deref
+
+The compiler inserts `*` for you in a few common places — that is why `s.push('!')` works on `s: &mut String`.
+
+| Situation | You write | Compiler means |
+|---|---|---|
+| Method call | `s.push('!')`, `v.len()` | `(*s).push('!')`, `(*v).len()` |
+| Field access | `self.width *= factor` | `(*self).width *= factor` |
+| Indexing | `v[0] = 5` (`v: &mut Vec<i32>`) | `(*v)[0] = 5` |
+| Formatting | `println!("{r}")` | prints the value, not an address |
+| Deref coercion | pass `&String` / `&Vec<T>` | as `&str` / `&[T]` |
+
+No auto-deref when **assigning** to a plain reference variable (`*r = ...`, `*r += 1`), or when **comparing** a reference with a value: `r == 5` is E0277 — write `*r == 5` (two references compare fine: `r == &5`).
+
+```rust
+struct Rect { width: f64, height: f64 }
+impl Rect {
+    fn scale(&mut self, factor: f64) {
+        self.width *= factor;       // no `*` needed — field access auto-derefs
+        self.height *= factor;
+    }
+}
+
+let mut rect = Rect { width: 1.0, height: 2.0 };
+let w = &mut rect.width;           // borrow a single field
+*w = 3.0;                          // plain reference variable — `*` required
+```
+
+---
+
+# Mutating elements of a collection
+
+Iterating with `.iter_mut()` (or `for x in &mut v`) gives you `&mut T` to each element — change it with `*x`.
+
+- `for x in v.iter_mut() { *x *= 2; }` — `x: &mut i32`; `for x in &mut v` and `for x in v` with `v: &mut [i32]` mean the same thing
+- `.iter()` gives `&T`: read with `*x`, or destructure in the pattern — `for &x in v.iter()` binds `x: i32` (a copy, `Copy` types only). This is the pattern counterpart of `*`, and why `"aeiou".contains(*c)` needs a `*` when `c: &char`
+- Destructuring a `&mut` in the pattern (`for &mut x in ...`) also *copies* — writing to that `x` does **not** change the vector
+- Single elements: `v[i] *= 2`, or `v.get_mut(i)` / `v.last_mut()` which return `Option<&mut T>`
+- Layers add up: `.iter().filter(|x| ...)` hands the closure a `&&i32`, so comparing needs `**x > 2`
+
+```rust
+let mut v = vec![1, 2, 3];
+for x in v.iter_mut() { *x *= 2; }     // [2, 4, 6]
+for x in &mut v { *x += 1; }           // [3, 5, 7]
+v[0] = 100;                            // [100, 5, 7]
+if let Some(last) = v.last_mut() {
+    *last = 0;                         // [100, 5, 0]
+}
+
+let nums = vec![1, 2, 3, 4];
+let mut total = 0;
+for &k in nums.iter() { total += k; }  // k: i32, copied out of &i32
+let big: Vec<&i32> = nums.iter().filter(|x| **x > 2).collect(); // [3, 4]
+```
+
+---
+
 # `&self` vs `&mut self`
 
 Mutability is part of the reference's type — a plain `&T` cannot be passed where `&mut T` is required.
