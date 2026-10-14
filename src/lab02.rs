@@ -71,13 +71,43 @@ fn add_exclamation(s: &mut String) {
     s.push('!');
 }
 
+// (c) E0106: missing lifetime specifier — a dangling reference.
+//     fn make_greeting(name: &str) -> &String {
+//         let g = format!("Hello, {name}!");
+//         &g
+//     }
+// Fix: return the owned String itself instead of a reference to a value
+// that's about to be dropped.
+fn make_greeting(name: &str) -> String {
+    format!("Hello, {name}!")
+}
+
 // (c) Call make_greeting("Ada") and print the result.
 // (d) E0499: `let mut s = String::from("abc"); let r1 = &mut s; let r2 =
 //     &mut s; r1.push('d'); r2.push('e'); println!("{s}");` — make the two
 //     mutable borrows not overlap.
 // (e) Call add_exclamation on a mutable String and print it.
 fn task2_fixes() {
-    todo!()
+    // (c)
+    println!("{}", make_greeting("Ada"));
+
+    // (d) Fix: use r1, let its borrow end, then take r2 — the two mutable
+    // borrows no longer overlap in time.
+    let mut s = String::from("abc");
+    {
+        let r1 = &mut s;
+        r1.push('d');
+    }
+    {
+        let r2 = &mut s;
+        r2.push('e');
+    }
+    println!("{s}");
+
+    // (e)
+    let mut greeting = String::from("hello");
+    add_exclamation(&mut greeting);
+    println!("{greeting}");
 }
 
 // ---------------------------------------------------------------------------
@@ -89,29 +119,42 @@ fn task2_fixes() {
 
 // first_word("hello world") == "hello", first_word("single") == "single"
 fn first_word(s: &str) -> &str {
-    todo!()
+    match s.find(' ') {
+        Some(i) => &s[..i],
+        None => s,
+    }
 }
 
 // count_vowels("AbcdE") == 2. Count aeiou, ignoring case. Use s.chars().
 fn count_vowels(s: &str) -> usize {
-    todo!()
+    s.chars().filter(|c| "aeiouAEIOU".contains(*c)).count()
 }
 
 // reverse_words("the quick brown fox") == "fox brown quick the".
 // Use split_whitespace.
 fn reverse_words(s: &str) -> String {
-    todo!()
+    s.split_whitespace().rev().collect::<Vec<_>>().join(" ")
 }
 
 // capitalize("rust") == "Rust", capitalize("") == "".
 fn capitalize(s: &str) -> String {
-    todo!()
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
 }
 
 // is_palindrome("A man, a plan, a canal: Panama") == true. Ignore case and
 // anything that is not alphanumeric.
 fn is_palindrome(s: &str) -> bool {
-    todo!()
+    let letters: Vec<char> = s
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .map(|c| c.to_ascii_lowercase())
+        .collect();
+    let reversed: Vec<char> = letters.iter().rev().copied().collect();
+    letters == reversed
 }
 
 // task3_strings:
@@ -124,7 +167,19 @@ fn is_palindrome(s: &str) -> bool {
 // - Why does the signature first_word(s: &str) -> &str guarantee that the
 //   result cannot outlive s?
 fn task3_strings() {
-    todo!()
+    println!("first_word: {}", first_word("hello world"));
+    println!("first_word: {}", first_word("single"));
+    println!("count_vowels: {}", count_vowels("AbcdE"));
+    println!("reverse_words: {}", reverse_words("the quick brown fox"));
+    println!("capitalize: {}", capitalize("rust"));
+    println!("capitalize empty: {:?}", capitalize(""));
+    println!(
+        "is_palindrome: {}",
+        is_palindrome("A man, a plan, a canal: Panama")
+    );
+
+    let s = "zażółć";
+    println!("len = {}, chars = {}", s.len(), s.chars().count());
 }
 
 // ---------------------------------------------------------------------------
